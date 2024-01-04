@@ -1,8 +1,12 @@
 import * as pulumi from "@pulumi/pulumi";
 import * as aws from "@pulumi/aws";
 import * as awsx from "@pulumi/awsx";
+import * as eks from "@pulumi/eks";
+import * as k8s from "@pulumi/kubernetes";
 
 const config = new pulumi.Config()
+
+
 
 // interfaces
 interface vpc {
@@ -196,5 +200,35 @@ const sg_egress_rule = new aws.vpc.SecurityGroupEgressRule("egress", {
     ipProtocol: "-1",
   });
 
-// exports
-export const vpc_export = main
+
+// ----EKS----  
+
+
+const cluster = new eks.Cluster("cluster", {
+    vpcId: main.id,
+    instanceType: "t2.micro",
+    publicSubnetIds: pub_sub.map(sub => sub.id),
+    desiredCapacity: 2,
+    minSize: 1,
+    maxSize: 2,
+});
+
+
+const provider = new k8s.Provider("provider", {
+    kubeconfig: cluster.kubeconfig,
+});
+
+
+const argocdChart = new k8s.helm.v3.Chart("argocd", {
+    chart: "argo-cd",
+    version: "3.2.3", // Use the version compatible with your requirements
+    namespace: "argocd", // Default namespace for ArgoCD
+    fetchOpts: {
+        repo: "https://argoproj.github.io/argo-helm", // Official ArgoCD helm chart repository
+    },
+}, { provider });
+
+// Export the ArgoCD server URL for easy access.
+export const argocdServer = cluster.endpoint.apply(endpoint => `https://${endpoint}`);
+
+
