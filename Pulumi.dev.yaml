@@ -19,3 +19,6 @@ config:
   yourDetails:
     yourIP: 185.205.174.138/32
     yourAccessKey:
+  namespaces:
+    argo: "argo-cd"
+    nginx: "nginx"
