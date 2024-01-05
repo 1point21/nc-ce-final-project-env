@@ -206,11 +206,12 @@ const sg_egress_rule = new aws.vpc.SecurityGroupEgressRule("egress", {
 
 const cluster = new eks.Cluster("cluster", {
     vpcId: main.id,
-    instanceType: "t2.micro",
+    instanceType: "t2.medium",
     publicSubnetIds: pub_sub.map(sub => sub.id),
     desiredCapacity: 2,
     minSize: 1,
     maxSize: 2,
+    createOidcProvider: true
 });
 
 
@@ -218,17 +219,47 @@ const provider = new k8s.Provider("provider", {
     kubeconfig: cluster.kubeconfig,
 });
 
-
-const argocdChart = new k8s.helm.v3.Chart("argocd", {
-    chart: "argo-cd",
-    version: "3.2.3", // Use the version compatible with your requirements
-    namespace: "argocd", // Default namespace for ArgoCD
-    fetchOpts: {
-        repo: "https://argoproj.github.io/argo-helm", // Official ArgoCD helm chart repository
+const name = "argocd"
+const ns = new k8s.core.v1.Namespace("argocd-ns", {
+    metadata: { 
+        name: name 
     },
 }, { provider });
 
-// Export the ArgoCD server URL for easy access.
-export const argocdServer = cluster.endpoint.apply(endpoint => `https://${endpoint}`);
+// const argocd = new k8s.helm.v3.Chart("argocd",
+//     {
+//         namespace: ns.metadata.name,
+//         chart: "argo-cd",
+//         fetchOpts: { repo: "https://github.com/argoproj/argo-cd/manifests/crds?ref=v2.4.9" },
+//         values: {
+//             installCRDs: false,
+//             server: {
+//                 service: {
+//                     type: 'LoadBalancer',
+//                 },
+//             }
+//         },
+//         transformations: [
+//             (obj: any) => {
+//                 if (obj.apiVersion == "extensions/v1beta1")  {
+//                     obj.apiVersion = "networking.k8s.io/v1beta1"
+//                 }
+//             },
+//         ],
+//     },
+//     // { providers: { kubernetes: provider }},
+// );
 
+const argo = new k8s.helm.v3.Chart("argo", {
+    namespace: ns.metadata.name,
+    chart: "argo-cd",
+    // version: "2.4.9",
+    fetchOpts:{
+        repo: "https://argoproj.github.io/argo-helm",
+    },
+}, { provider });
 
+// // Export the ArgoCD server URL for easy access.
+// export const argocdServer = cluster.endpoint.apply(endpoint => `https://${endpoint}`);
+
+export const kubeconfig = cluster.kubeconfig;
