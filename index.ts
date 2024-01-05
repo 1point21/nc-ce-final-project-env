@@ -221,21 +221,25 @@ const nginx_ns = new k8s.core.v1.Namespace(
   { provider }
 );
 
-const nginxIngress = new k8s.helm.v3.Chart(
+const nginxIngressController = new k8s.helm.v3.Chart(
   "nginx-ingress",
   {
-    namespace: nginx_ns.metadata.name,
-    chart: "ingress-nginx",
-    version: "3.23.0",
-    fetchOpts: {
-      repo: "https://kubernetes.github.io/ingress-nginx",
+    chart: "nginx-ingress",
+    fetchOpts: { repo: "https://helm.nginx.com/stable" },
+    // Override the default configuration
+    values: {
+      controller: {
+        kind: "daemonset",
+        service: {
+          type: "LoadBalancer",
+          annotations: {
+            "service.beta.kubernetes.io/aws-load-balancer-type": "nlb",
+          },
+        },
+      },
     },
   },
   { provider }
 );
 
 export const kubeconfig = cluster.kubeconfig;
-export const ingressControllerStatus = nginxIngress.getResource(
-  "v1/Service",
-  "nginx-ingress-controller-status"
-);
