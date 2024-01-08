@@ -2,6 +2,7 @@ import * as pulumi from "@pulumi/pulumi";
 import * as aws from "@pulumi/aws";
 import * as eks from "@pulumi/eks";
 import * as k8s from "@pulumi/kubernetes";
+import { SecurityGroup } from "@pulumi/aws/ec2";
 
 const config = new pulumi.Config();
 
@@ -172,6 +173,29 @@ const sg_egress_rule = new aws.vpc.SecurityGroupEgressRule("egress", {
   ipProtocol: "-1",
 });
 
+// ALLOW PG INGRESS / EGRESS
+
+const sg_rds = new aws.ec2.SecurityGroup("allow-postgres", {
+  description: "Allow postgres connections",
+  vpcId: main.id,
+
+  tags: {
+    Name: `${pulumi.getProject()}-sg-allow-pg`,
+    ManagedBy: "Pulumi",
+  },
+});
+
+const rds_ingress = new aws.vpc.SecurityGroupIngressRule(
+  "rds_ingress",
+  {
+    securityGroupId: sg_rds.id,
+    cidrIpv4: "185.205.174.138/32",
+    fromPort: 5432,
+    ipProtocol: "tcp",
+    toPort: 5432,
+  }
+);
+
 // ----EKS----
 
 const cluster = new eks.Cluster("cluster", {
@@ -241,5 +265,36 @@ const nginxIngressController = new k8s.helm.v3.Chart(
   },
   { provider }
 );
+
+// CREATE SUBNET GROUP FOR DATABASE
+
+const db_subnet_group = new aws.rds.SubnetGroup("db_subnet_group", {
+  subnetIds: pub_sub.map((sub) => sub.id),
+  tags: {
+    Name: `${pulumi.getProject()}-rd-subnet-group`,
+    ManagedBy: "Pulumi",
+  },
+});
+
+const dbkey = new aws.kms.Key("dbkey", {description: "Example KMS Key"});
+
+const _default = new aws.rds.Instance("default", {
+    allocatedStorage: 5,
+    dbName: "mydb",
+    engine: "postgres",
+    engineVersion: "14.10",
+    instanceClass: "db.t3.micro",
+    //manageMasterUserPassword: true,
+    //masterUserSecretKmsKeyId: dbkey.keyId,
+    username: "nclearner",
+    password: "password",
+    dbSubnetGroupName: db_subnet_group.name,
+    vpcSecurityGroupIds: [sg_rds.id, sg_egress.id],
+    publiclyAccessible: true,
+    // parameterGroupName: "default.mysql5.7",
+});
+
+
+export const database = _default.address
 
 export const kubeconfig = cluster.kubeconfig;
