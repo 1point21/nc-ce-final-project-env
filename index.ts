@@ -23,6 +23,7 @@ interface yourDetails {
 interface namespaces {
   argo: string;
   nginx: string;
+  prometheus: string;
 }
 
 // define objects from config file
@@ -185,18 +186,13 @@ const sg_rds = new aws.ec2.SecurityGroup("allow-postgres", {
   },
 });
 
-const rds_ingress = new aws.vpc.SecurityGroupIngressRule(
-  "rds_ingress",
-  {
-    securityGroupId: sg_rds.id,
-    cidrIpv4: "185.205.174.138/32",
-    fromPort: 5432,
-    ipProtocol: "tcp",
-    toPort: 5432,
-  }
-);
-
-
+const rds_ingress = new aws.vpc.SecurityGroupIngressRule("rds_ingress", {
+  securityGroupId: sg_rds.id,
+  cidrIpv4: "185.205.174.138/32",
+  fromPort: 5432,
+  ipProtocol: "tcp",
+  toPort: 5432,
+});
 
 // ----EKS----
 
@@ -236,9 +232,9 @@ const argo = new k8s.helm.v3.Chart(
     values: {
       server: {
         service: {
-            type: 'LoadBalancer',
+          type: "LoadBalancer",
         },
-    },
+      },
     },
   },
   { provider }
@@ -275,6 +271,73 @@ const nginxIngressController = new k8s.helm.v3.Chart(
   { provider }
 );
 
+const prom_ns = new k8s.core.v1.Namespace(
+  "prometheus",
+  {
+    metadata: {
+      name: namespaces.prometheus,
+    },
+  },
+  { provider }
+);
+
+const prometheus = new k8s.helm.v3.Chart(
+  "prometheus",
+  {
+    namespace: prom_ns.metadata.name,
+    chart: "kube-prometheus-stack",
+    fetchOpts: { repo: "https://prometheus-community.github.io/helm-charts" },
+    // Override the default configuration
+    // values: {
+    //   prometheus: {
+    //     service: {
+    //       type: "LoadBalancer",
+    //     },
+    //   },
+    // },
+  },
+  { provider }
+);
+
+const prom_service = new k8s.core.v1.Service("prom_service", {
+  metadata: {
+      annotations: {
+        "prometheus.io/scrape": 'true',
+        "prometheus.io/port":   '9090'
+      },
+      namespace: prom_ns.metadata.name,
+      name: "prometheus-service"
+  },
+  spec: {  
+    selector: {
+      "app.kubernetes.io/instance": "prometheus",
+      "app.kubernetes.io/name": "grafana",
+    },    
+    type: "LoadBalancer",
+      ports: [{
+          port: 8080,
+          targetPort: 9090,
+      }],
+  },
+}, { provider } );
+
+// apiVersion: v1
+// kind: Service
+// metadata:
+//   name: prometheus-service
+//   namespace: monitoring
+//   annotations:
+//       prometheus.io/scrape: 'true'
+//       prometheus.io/port:   '9090'
+// spec:
+//   selector: 
+//     app: prometheus-server
+//   type: NodePort  
+//   ports:
+//     - port: 8080
+//       targetPort: 9090 
+//       nodePort: 30000
+
 // CREATE SUBNET GROUP FOR DATABASE (PUBLIC)
 
 const db_subnet_group = new aws.rds.SubnetGroup("db_subnet_group", {
@@ -289,32 +352,33 @@ const db_subnet_group = new aws.rds.SubnetGroup("db_subnet_group", {
 // const dbkey = new aws.kms.Key("dbkey", {description: "Example KMS Key"});
 
 const _default = new aws.rds.Instance("default", {
-    allocatedStorage: 5,
-    dbName: "testdb2",
-    engine: "postgres",
-    engineVersion: "14.10",
-    instanceClass: "db.t3.micro",
-    //manageMasterUserPassword: true,
-    //masterUserSecretKmsKeyId: dbkey.keyId,
-    username: "nclearner",
-    password: "password",
-    dbSubnetGroupName: db_subnet_group.name,
-    vpcSecurityGroupIds: [sg_rds.id, sg_egress.id],
-    publiclyAccessible: true,
-    // parameterGroupName: "default.mysql5.7",
+  allocatedStorage: 5,
+  dbName: "testdb2",
+  engine: "postgres",
+  engineVersion: "14.10",
+  instanceClass: "db.t3.micro",
+  //manageMasterUserPassword: true,
+  //masterUserSecretKmsKeyId: dbkey.keyId,
+  username: "nclearner",
+  password: "password",
+  dbSubnetGroupName: db_subnet_group.name,
+  vpcSecurityGroupIds: [sg_rds.id, sg_egress.id],
+  publiclyAccessible: true,
+  // parameterGroupName: "default.mysql5.7",
 });
 
 // CREATE SUBNET GROUP FOR DATABASE (PRIVATE)
 
 const rds_internal_ingress = new aws.vpc.SecurityGroupIngressRule(
-  "rds_ingress_internal",{
+  "rds_ingress_internal",
+  {
     securityGroupId: sg_rds.id,
     referencedSecurityGroupId: cluster.nodeSecurityGroup.id,
     fromPort: 5432,
     ipProtocol: "tcp",
     toPort: 5432,
   }
-)
+);
 
 const db_subnet_group_priv = new aws.rds.SubnetGroup("db_subnet_group_priv", {
   subnetIds: priv_sub.map((sub) => sub.id),
@@ -325,7 +389,9 @@ const db_subnet_group_priv = new aws.rds.SubnetGroup("db_subnet_group_priv", {
 });
 
 // FOR SECRETS
-const priv_dbkey = new aws.kms.Key("priv_dbkey", {description: "Private KMS Key"});
+const priv_dbkey = new aws.kms.Key("priv_dbkey", {
+  description: "Private KMS Key",
+});
 
 const priv_db = new aws.rds.Instance("privdb", {
   allocatedStorage: 5,
@@ -342,7 +408,7 @@ const priv_db = new aws.rds.Instance("privdb", {
   // parameterGroupName: "default.mysql5.7",
 });
 
-export const database = _default.address
-export const eks_sgs = cluster.nodeSecurityGroup.id
+export const database = _default.address;
+export const eks_sgs = cluster.nodeSecurityGroup.id;
 
 export const kubeconfig = cluster.kubeconfig;

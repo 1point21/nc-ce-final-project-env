@@ -22,3 +22,4 @@ config:
   namespaces:
     argo: "argo-cd"
     nginx: "nginx"
+    prometheus: "prometheus"
