@@ -196,6 +196,8 @@ const rds_ingress = new aws.vpc.SecurityGroupIngressRule(
   }
 );
 
+
+
 // ----EKS----
 
 const cluster = new eks.Cluster("cluster", {
@@ -230,6 +232,13 @@ const argo = new k8s.helm.v3.Chart(
     // version: "2.4.9",
     fetchOpts: {
       repo: "https://argoproj.github.io/argo-helm",
+    },
+    values: {
+      server: {
+        service: {
+            type: 'LoadBalancer',
+        },
+    },
     },
   },
   { provider }
@@ -281,7 +290,7 @@ const db_subnet_group = new aws.rds.SubnetGroup("db_subnet_group", {
 
 const _default = new aws.rds.Instance("default", {
     allocatedStorage: 5,
-    dbName: "mydb",
+    dbName: "testdb2",
     engine: "postgres",
     engineVersion: "14.10",
     instanceClass: "db.t3.micro",
@@ -297,6 +306,16 @@ const _default = new aws.rds.Instance("default", {
 
 // CREATE SUBNET GROUP FOR DATABASE (PRIVATE)
 
+const rds_internal_ingress = new aws.vpc.SecurityGroupIngressRule(
+  "rds_ingress_internal",{
+    securityGroupId: sg_rds.id,
+    referencedSecurityGroupId: cluster.nodeSecurityGroup.id,
+    fromPort: 5432,
+    ipProtocol: "tcp",
+    toPort: 5432,
+  }
+)
+
 const db_subnet_group_priv = new aws.rds.SubnetGroup("db_subnet_group_priv", {
   subnetIds: priv_sub.map((sub) => sub.id),
   tags: {
@@ -308,7 +327,7 @@ const db_subnet_group_priv = new aws.rds.SubnetGroup("db_subnet_group_priv", {
 // FOR SECRETS
 const priv_dbkey = new aws.kms.Key("priv_dbkey", {description: "Private KMS Key"});
 
-const priv_db = new aws.rds.Instance("priv_db", {
+const priv_db = new aws.rds.Instance("privdb", {
   allocatedStorage: 5,
   dbName: "mydb",
   engine: "postgres",
@@ -319,10 +338,11 @@ const priv_db = new aws.rds.Instance("priv_db", {
   username: "nclearnerpriv",
   dbSubnetGroupName: db_subnet_group.name,
   vpcSecurityGroupIds: [sg_rds.id, sg_egress.id],
-  publiclyAccessible: true,
+  //publiclyAccessible: true,
   // parameterGroupName: "default.mysql5.7",
 });
 
 export const database = _default.address
+export const eks_sgs = cluster.nodeSecurityGroup.id
 
 export const kubeconfig = cluster.kubeconfig;
