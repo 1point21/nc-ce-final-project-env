@@ -266,7 +266,7 @@ const nginxIngressController = new k8s.helm.v3.Chart(
   { provider }
 );
 
-// CREATE SUBNET GROUP FOR DATABASE
+// CREATE SUBNET GROUP FOR DATABASE (PUBLIC)
 
 const db_subnet_group = new aws.rds.SubnetGroup("db_subnet_group", {
   subnetIds: pub_sub.map((sub) => sub.id),
@@ -276,7 +276,8 @@ const db_subnet_group = new aws.rds.SubnetGroup("db_subnet_group", {
   },
 });
 
-const dbkey = new aws.kms.Key("dbkey", {description: "Example KMS Key"});
+// FOR SECRETS
+// const dbkey = new aws.kms.Key("dbkey", {description: "Example KMS Key"});
 
 const _default = new aws.rds.Instance("default", {
     allocatedStorage: 5,
@@ -294,6 +295,33 @@ const _default = new aws.rds.Instance("default", {
     // parameterGroupName: "default.mysql5.7",
 });
 
+// CREATE SUBNET GROUP FOR DATABASE (PRIVATE)
+
+const db_subnet_group_priv = new aws.rds.SubnetGroup("db_subnet_group_priv", {
+  subnetIds: priv_sub.map((sub) => sub.id),
+  tags: {
+    Name: `${pulumi.getProject()}-rd-subnet-group-priv`,
+    ManagedBy: "Pulumi",
+  },
+});
+
+// FOR SECRETS
+const priv_dbkey = new aws.kms.Key("priv_dbkey", {description: "Private KMS Key"});
+
+const priv_db = new aws.rds.Instance("priv_db", {
+  allocatedStorage: 5,
+  dbName: "mydb",
+  engine: "postgres",
+  engineVersion: "14.10",
+  instanceClass: "db.t3.micro",
+  manageMasterUserPassword: true,
+  masterUserSecretKmsKeyId: priv_dbkey.keyId,
+  username: "nclearnerpriv",
+  dbSubnetGroupName: db_subnet_group.name,
+  vpcSecurityGroupIds: [sg_rds.id, sg_egress.id],
+  publiclyAccessible: true,
+  // parameterGroupName: "default.mysql5.7",
+});
 
 export const database = _default.address
 
