@@ -157,6 +157,17 @@ const sg_http_ingress3000 = new aws.vpc.SecurityGroupIngressRule(
   }
 );
 
+const sg_http_ingress8084 = new aws.vpc.SecurityGroupIngressRule(
+  "http-8084-ingress",
+  {
+    securityGroupId: sg_http.id,
+    cidrIpv4: "0.0.0.0/0",
+    fromPort: 8084,
+    ipProtocol: "tcp",
+    toPort: 8084,
+  }
+);
+
 // create security group - egress
 const sg_egress = new aws.ec2.SecurityGroup("allow-egress", {
   description: "Allow Egress connections",
@@ -260,6 +271,7 @@ const nginx_ns = new k8s.core.v1.Namespace(
 const nginxIngressController = new k8s.helm.v3.Chart(
   "nginx-ingress",
   {
+    namespace: nginx_ns.metadata.name,
     chart: "nginx-ingress",
     fetchOpts: { repo: "https://helm.nginx.com/stable" },
     // Override the default configuration
@@ -279,33 +291,33 @@ const nginxIngressController = new k8s.helm.v3.Chart(
 );
 
 // create monitoring namespace
-// const prom_ns = new k8s.core.v1.Namespace(
-//   "prometheus",
-//   {
-//     metadata: {
-//       name: namespaces.prometheus,
-//     },
-//   },
-//   { provider }
-// );
+const prom_ns = new k8s.core.v1.Namespace(
+  "prometheus",
+  {
+    metadata: {
+      name: namespaces.prometheus,
+    },
+  },
+  { provider }
+);
 
-// const prometheus = new k8s.helm.v3.Chart(
-//   "prometheus",
-//   {
-//     namespace: prom_ns.metadata.name,
-//     chart: "kube-prometheus-stack",
-//     fetchOpts: { repo: "https://prometheus-community.github.io/helm-charts" },
-//     // Override the default configuration
-//     // values: {
-//     //   prometheus: {
-//     //     service: {
-//     //       type: "LoadBalancer",
-//     //     },
-//     //   },
-//     // },
-//   },
-//   { provider }
-// );
+const prometheus = new k8s.helm.v3.Chart(
+  "prometheus",
+  {
+    namespace: prom_ns.metadata.name,
+    chart: "kube-prometheus-stack",
+    fetchOpts: { repo: "https://prometheus-community.github.io/helm-charts" },
+    // Override the default configuration
+    // values: {
+    //   prometheus: {
+    //     service: {
+    //       type: "LoadBalancer",
+    //     },
+    //   },
+    // },
+  },
+  { provider }
+);
 
 // const prom_service = new k8s.core.v1.Service("prom_service", {
 //   metadata: {
