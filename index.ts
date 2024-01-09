@@ -315,7 +315,26 @@ const prometheus = new k8s.helm.v3.Chart(
     //     },
     //   },
     // },
-  },
+  //   values: {
+  //     global: {
+  //         scrape_interval: "15s",
+  //         evaluation_interval: "15s",
+  //         // scrape_timeout is not set and will use the default value of 10s
+  //     },
+  //     scrapeConfigs: [
+  //         {
+  //             job_name: "spring boot scrape",
+  //             metrics_path: "/actuator/prometheus",
+  //             scrape_interval: "5s",
+  //             static_configs: [
+  //                 {
+  //                     targets: ["localhost:8080"],
+  //                 },
+  //             ],
+  //         },
+  //     ],
+  // },
+  // },
   { provider }
 );
 
