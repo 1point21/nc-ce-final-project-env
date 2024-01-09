@@ -124,7 +124,7 @@ const sg_ssh_ingress = new aws.vpc.SecurityGroupIngressRule("ssh-ingress", {
   toPort: 22,
 });
 
-// create security group - HTTP
+// create security group - HTTP (on 80 and 3000)
 const sg_http = new aws.ec2.SecurityGroup("allow-http", {
   description: "Allow HTTP connections",
   vpcId: main.id,
@@ -151,13 +151,13 @@ const sg_http_ingress3000 = new aws.vpc.SecurityGroupIngressRule(
   {
     securityGroupId: sg_http.id,
     cidrIpv4: "0.0.0.0/0",
-    // need to figure out which port the app is listening on
     fromPort: 3000,
     ipProtocol: "tcp",
     toPort: 3000,
   }
 );
 
+// create security group - egress
 const sg_egress = new aws.ec2.SecurityGroup("allow-egress", {
   description: "Allow Egress connections",
   vpcId: main.id,
@@ -174,8 +174,8 @@ const sg_egress_rule = new aws.vpc.SecurityGroupEgressRule("egress", {
   ipProtocol: "-1",
 });
 
-// ALLOW PG INGRESS / EGRESS
 
+// create security group - allow pg ingress
 const sg_rds = new aws.ec2.SecurityGroup("allow-postgres", {
   description: "Allow postgres connections",
   vpcId: main.id,
@@ -188,14 +188,16 @@ const sg_rds = new aws.ec2.SecurityGroup("allow-postgres", {
 
 const rds_ingress = new aws.vpc.SecurityGroupIngressRule("rds_ingress", {
   securityGroupId: sg_rds.id,
-  cidrIpv4: "185.205.174.138/32",
+  cidrIpv4: yourDetails.yourIP,
   fromPort: 5432,
   ipProtocol: "tcp",
   toPort: 5432,
 });
 
+
 // ----EKS----
 
+// create cluster
 const cluster = new eks.Cluster("cluster", {
   vpcId: main.id,
   instanceType: "t2.medium",
@@ -206,10 +208,12 @@ const cluster = new eks.Cluster("cluster", {
   useDefaultVpcCni: true,
 });
 
+// create provider
 const provider = new k8s.Provider("provider", {
   kubeconfig: cluster.kubeconfig,
 });
 
+// create argo-cd namespace
 const argo_cd_ns = new k8s.core.v1.Namespace(
   "argocd-ns",
   {
@@ -220,6 +224,7 @@ const argo_cd_ns = new k8s.core.v1.Namespace(
   { provider }
 );
 
+// deploy argo helm chart behind alb service to allow public access
 const argo = new k8s.helm.v3.Chart(
   "argo",
   {
@@ -240,6 +245,7 @@ const argo = new k8s.helm.v3.Chart(
   { provider }
 );
 
+// create nginx namespace
 const nginx_ns = new k8s.core.v1.Namespace(
   "nginx-ns",
   {
@@ -250,6 +256,7 @@ const nginx_ns = new k8s.core.v1.Namespace(
   { provider }
 );
 
+// deploy nginx ingress controller
 const nginxIngressController = new k8s.helm.v3.Chart(
   "nginx-ingress",
   {
@@ -271,74 +278,60 @@ const nginxIngressController = new k8s.helm.v3.Chart(
   { provider }
 );
 
-const prom_ns = new k8s.core.v1.Namespace(
-  "prometheus",
-  {
-    metadata: {
-      name: namespaces.prometheus,
-    },
-  },
-  { provider }
-);
+// create monitoring namespace
+// const prom_ns = new k8s.core.v1.Namespace(
+//   "prometheus",
+//   {
+//     metadata: {
+//       name: namespaces.prometheus,
+//     },
+//   },
+//   { provider }
+// );
 
-const prometheus = new k8s.helm.v3.Chart(
-  "prometheus",
-  {
-    namespace: prom_ns.metadata.name,
-    chart: "kube-prometheus-stack",
-    fetchOpts: { repo: "https://prometheus-community.github.io/helm-charts" },
-    // Override the default configuration
-    // values: {
-    //   prometheus: {
-    //     service: {
-    //       type: "LoadBalancer",
-    //     },
-    //   },
-    // },
-  },
-  { provider }
-);
+// const prometheus = new k8s.helm.v3.Chart(
+//   "prometheus",
+//   {
+//     namespace: prom_ns.metadata.name,
+//     chart: "kube-prometheus-stack",
+//     fetchOpts: { repo: "https://prometheus-community.github.io/helm-charts" },
+//     // Override the default configuration
+//     // values: {
+//     //   prometheus: {
+//     //     service: {
+//     //       type: "LoadBalancer",
+//     //     },
+//     //   },
+//     // },
+//   },
+//   { provider }
+// );
 
-const prom_service = new k8s.core.v1.Service("prom_service", {
-  metadata: {
-      annotations: {
-        "prometheus.io/scrape": 'true',
-        "prometheus.io/port":   '9090'
-      },
-      namespace: prom_ns.metadata.name,
-      name: "prometheus-service"
-  },
-  spec: {  
-    selector: {
-      "app.kubernetes.io/instance": "prometheus",
-      "app.kubernetes.io/name": "grafana",
-    },    
-    type: "LoadBalancer",
-      ports: [{
-          port: 8080,
-          targetPort: 9090,
-      }],
-  },
-}, { provider } );
+// const prom_service = new k8s.core.v1.Service("prom_service", {
+//   metadata: {
+//       annotations: {
+//         "prometheus.io/scrape": 'true',
+//         "prometheus.io/port":   '9090'
+//       },
+//       namespace: prom_ns.metadata.name,
+//       name: "prometheus-service"
+//   },
+//   spec: {  
+//     selector: {
+//       "app.kubernetes.io/instance": "prometheus",
+//       "app.kubernetes.io/name": "grafana",
+//     },    
+//     type: "LoadBalancer",
+//       ports: [{
+//           port: 8080,
+//           targetPort: 9090,
+//       }],
+//   },
+// }, { provider } );
 
-// apiVersion: v1
-// kind: Service
-// metadata:
-//   name: prometheus-service
-//   namespace: monitoring
-//   annotations:
-//       prometheus.io/scrape: 'true'
-//       prometheus.io/port:   '9090'
-// spec:
-//   selector: 
-//     app: prometheus-server
-//   type: NodePort  
-//   ports:
-//     - port: 8080
-//       targetPort: 9090 
-//       nodePort: 30000
+// ----DATABASES----
 
-// CREATE SUBNET GROUP FOR DATABASE (PUBLIC)
+// create subnet group for database (public)
 
 const db_subnet_group = new aws.rds.SubnetGroup("db_subnet_group", {
   subnetIds: pub_sub.map((sub) => sub.id),
@@ -348,10 +341,10 @@ const db_subnet_group = new aws.rds.SubnetGroup("db_subnet_group", {
   },
 });
 
-// FOR SECRETS
+// create kms key for secrets
 // const dbkey = new aws.kms.Key("dbkey", {description: "Example KMS Key"});
 
-const _default = new aws.rds.Instance("default", {
+const nclearnerdb = new aws.rds.Instance("nclearnerdb", {
   allocatedStorage: 5,
   dbName: "testdb2",
   engine: "postgres",
@@ -364,10 +357,11 @@ const _default = new aws.rds.Instance("default", {
   dbSubnetGroupName: db_subnet_group.name,
   vpcSecurityGroupIds: [sg_rds.id, sg_egress.id],
   publiclyAccessible: true,
-  // parameterGroupName: "default.mysql5.7",
+  skipFinalSnapshot: false,
+  finalSnapshotIdentifier: "default25d5881-snapshot"
 });
 
-// CREATE SUBNET GROUP FOR DATABASE (PRIVATE)
+// create sg rule for private database
 
 const rds_internal_ingress = new aws.vpc.SecurityGroupIngressRule(
   "rds_ingress_internal",
@@ -380,6 +374,8 @@ const rds_internal_ingress = new aws.vpc.SecurityGroupIngressRule(
   }
 );
 
+// create subnet group for database (private)
+
 const db_subnet_group_priv = new aws.rds.SubnetGroup("db_subnet_group_priv", {
   subnetIds: priv_sub.map((sub) => sub.id),
   tags: {
@@ -388,11 +384,12 @@ const db_subnet_group_priv = new aws.rds.SubnetGroup("db_subnet_group_priv", {
   },
 });
 
-// FOR SECRETS
+// create kms key for private database
 const priv_dbkey = new aws.kms.Key("priv_dbkey", {
   description: "Private KMS Key",
 });
 
+// create private database
 const priv_db = new aws.rds.Instance("privdb", {
   allocatedStorage: 5,
   dbName: "mydb",
@@ -404,11 +401,16 @@ const priv_db = new aws.rds.Instance("privdb", {
   username: "nclearnerpriv",
   dbSubnetGroupName: db_subnet_group.name,
   vpcSecurityGroupIds: [sg_rds.id, sg_egress.id],
-  //publiclyAccessible: true,
-  // parameterGroupName: "default.mysql5.7",
+  deletionProtection: false,
+  skipFinalSnapshot: false,
+  finalSnapshotIdentifier: "privdba6750e8-snapshot",
 });
 
-export const database = _default.address;
-export const eks_sgs = cluster.nodeSecurityGroup.id;
+// dns address for public database
+export const database = nclearnerdb.address;
 
+// dns address for private database
+export const priv_database = priv_db.address;
+
+// kubeconfig for kubectl 
 export const kubeconfig = cluster.kubeconfig;

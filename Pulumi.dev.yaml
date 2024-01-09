@@ -17,9 +17,9 @@ config:
       - eu-west-2c
   security:
   yourDetails:
-    yourIP: 185.205.174.138/32
+    yourIP: 81.77.123.225/32
     yourAccessKey:
   namespaces:
     argo: "argo-cd"
     nginx: "nginx"
-    prometheus: "prometheus"
+    prometheus: "monitoring"
