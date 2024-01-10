@@ -3,6 +3,8 @@ import * as aws from "@pulumi/aws";
 import * as eks from "@pulumi/eks";
 import * as k8s from "@pulumi/kubernetes";
 
+import {Networking} from "./Components/Networking"
+
 const config = new pulumi.Config();
 
 // interfaces
@@ -48,83 +50,21 @@ const databaseValues = config.requireObject<databaseValues>("databaseValues")
 const privDatabaseValues = config.requireObject<privDatabaseValues>("privDatabaseValues")
 
 // ----NETWORKING----
-// create VPC
-const main = new aws.ec2.Vpc("main-vpc", {
-  cidrBlock: vpc.vpc_cidr,
-  enableDnsHostnames: true,
-  enableDnsSupport: true,
-  tags: {
-    Name: `${pulumi.getProject()}-${vpc.vpc_name}`,
-    ManagedBy: "Pulumi",
-  },
-});
 
-// create pub subs
-const pub_sub = vpc.pub_sub_cidrs.map((subnet, index) => {
-  return new aws.ec2.Subnet(`pub_sub${index + 1}`, {
-    cidrBlock: vpc.pub_sub_cidrs[index],
-    vpcId: main.id,
-    availabilityZone: vpc.azs[index],
-    mapPublicIpOnLaunch: true,
-    tags: {
-      Name: `${pulumi.getProject()}-pub-sub${index + 1}`,
-      ManagedBy: "Pulumi",
-    },
-  });
-});
-
-// create priv subs
-const priv_sub = vpc.priv_sub_cidrs.map((subnet, index) => {
-  return new aws.ec2.Subnet(`priv_sub${index + 1}`, {
-    cidrBlock: vpc.priv_sub_cidrs[index],
-    vpcId: main.id,
-    availabilityZone: vpc.azs[index],
-    mapPublicIpOnLaunch: false,
-    tags: {
-      Name: `${pulumi.getProject()}-priv-sub${index + 1}`,
-      ManagedBy: "Pulumi",
-    },
-  });
-});
-
-// create ig
-const ig = new aws.ec2.InternetGateway("main-ig", {
-  vpcId: main.id,
-  tags: {
-    Name: `${pulumi.getProject()}-ig`,
-    ManagedBy: "Pulumi",
-  },
-});
-
-// create rt
-const pub_rt = new aws.ec2.RouteTable("pub_rt", {
-  vpcId: main.id,
-  routes: [
-    {
-      cidrBlock: "0.0.0.0/0",
-      gatewayId: ig.id,
-    },
-  ],
-  tags: {
-    Name: `${pulumi.getProject()}-rt`,
-    ManagedBy: "Pulumi",
-  },
-});
-
-// rt associations
-const rt_associate = pub_sub.map((subnet, index) => {
-  return new aws.ec2.RouteTableAssociation(`rt_associate-${index + 1}`, {
-    subnetId: subnet.id,
-    routeTableId: pub_rt.id,
-  });
-});
+const network = new Networking({
+    vpc_name: vpc.vpc_name,
+    vpc_cidr: vpc.vpc_cidr,
+    azs: vpc.azs,
+    pub_sub_cidrs: vpc.pub_sub_cidrs,
+    priv_sub_cidrs: vpc.priv_sub_cidrs
+})
 
 // ----SECURITY----
 
 // create security group - SSH IN
 const sg_ssh = new aws.ec2.SecurityGroup("allow-ssh", {
   description: "Allows SSH connections from the provided IP address",
-  vpcId: main.id,
+  vpcId: network.vpc.id,
 
   tags: {
     Name: `${pulumi.getProject()}-sg-allow-ssh`,
@@ -143,7 +83,7 @@ const sg_ssh_ingress = new aws.vpc.SecurityGroupIngressRule("ssh-ingress", {
 // create security group - HTTP (on 80 and 3000)
 const sg_http = new aws.ec2.SecurityGroup("allow-http", {
   description: "Allow HTTP connections",
-  vpcId: main.id,
+  vpcId: network.vpc.id,
 
   tags: {
     Name: `${pulumi.getProject()}-sg-allow-http`,
@@ -187,7 +127,7 @@ const sg_http_ingress8084 = new aws.vpc.SecurityGroupIngressRule(
 // create security group - egress
 const sg_egress = new aws.ec2.SecurityGroup("allow-egress", {
   description: "Allow Egress connections",
-  vpcId: main.id,
+  vpcId: network.vpc.id,
 
   tags: {
     Name: `${pulumi.getProject()}-sg-allow-egress`,
@@ -205,7 +145,7 @@ const sg_egress_rule = new aws.vpc.SecurityGroupEgressRule("egress", {
 // create security group - allow pg ingress
 const sg_rds = new aws.ec2.SecurityGroup("allow-postgres", {
   description: "Allow postgres connections",
-  vpcId: main.id,
+  vpcId: network.vpc.id,
 
   tags: {
     Name: `${pulumi.getProject()}-sg-allow-pg`,
@@ -225,9 +165,9 @@ const rds_ingress = new aws.vpc.SecurityGroupIngressRule("rds_ingress", {
 
 // create cluster
 const cluster = new eks.Cluster("cluster", {
-  vpcId: main.id,
+  vpcId: network.vpc.id,
   instanceType: clusterValues.instanceType,
-  publicSubnetIds: pub_sub.map((sub) => sub.id),
+  publicSubnetIds: network.pub_subs.map((sub) => sub.id),
   desiredCapacity: clusterValues.desiredCapacity,
   minSize: clusterValues.minSize,
   maxSize: clusterValues.maxSize,
@@ -264,7 +204,7 @@ const cluster_namespaces = clusterValues.namespaces.map(namespace => {
 
 // create subnet group for database (public)
 const db_subnet_group = new aws.rds.SubnetGroup("db_subnet_group", {
-  subnetIds: pub_sub.map((sub) => sub.id),
+  subnetIds: network.pub_subs.map((sub) => sub.id),
   tags: {
     Name: `${pulumi.getProject()}-rd-subnet-group`,
     ManagedBy: "Pulumi",
@@ -311,7 +251,7 @@ const rds_internal_ingress = new aws.vpc.SecurityGroupIngressRule(
 
 // create subnet group for database (private)
 const db_subnet_group_priv = new aws.rds.SubnetGroup("db_subnet_group_priv", {
-  subnetIds: priv_sub.map((sub) => sub.id),
+  subnetIds: network.priv_subs.map((sub) => sub.id),
   tags: {
     Name: `${pulumi.getProject()}-rd-subnet-group-priv`,
     ManagedBy: "Pulumi",
@@ -403,7 +343,7 @@ const prometheus = new k8s.helm.v3.Chart(
             scrape_interval: "5s",
             static_configs: [
               {
-                // add the dns of the main ingress load balancer here
+                // add the dns of the network.vpc ingress load balancer here
                 targets: ["a9f99a5370ae74d49bf5d7ccda06588f-40655a76ec9cbcab.elb.eu-west-2.amazonaws.com"],
               },
                 ],
