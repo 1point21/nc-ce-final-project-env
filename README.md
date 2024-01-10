@@ -54,9 +54,59 @@ aws configure
 ```
 
 ## Aplication Setup:
-In order to create and deploy the infrastructure, simply run the following commands:
+In order to create and deploy the infrastructure, simply follow the instructions below and run the provided commands:
 <br> <br>
 
+Firstly:
+<br>
+Install ArgoCd and complete the required setup, here is how:
+<br> <br>
+
+We will first need to create a namespace for argo.
+<br>
+Run the following command:
+<br>
+```bash
+kubectl create namespace argocd
+```
+<br> <br>
+
+After creating the namespace, you can install ArgoCD with the following command:
+<br>
+```bash
+kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+```
+<br> <br>
+
+Congratulations, you have successfully installed ArgoCD, Now access the interface with the following two commands:
+<br>
+```bash
+kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d
+```
+<br>
+In order to access the ArgoCD UI, you will need a password, the command above will generate that password for you!
+<br> <br>
+Now run the following command to access the ArgoCD Interface:
+<br>
+```bash
+kubectl port-forward svc/argocd-server -n argocd 8083:443
+```
+<br> <br>
+
+Hopefully, no errors will occur during this process, you will now be able to go to the internet and access the Argo UI through the following link:
+<br>
+http://localhost:8083
+<br><br>
+
+You will be asked for a user name and password:
+<br>
+Username = admin
+<br>
+Password = (The output provided when entering the provided command to generate the password)
+
+
+
+<br> <br>
 ```bash
 pulumi init
 ```
@@ -138,58 +188,3 @@ This project is licensed under the MIT License.
 
 
 
-
-
-# Another Version of readme:
-
-
-# NC final project
-
-## CICD Pipeline with Jenkins
-
-The Continuous Implementation and Continuous Development part of the process utilised a Pipeline as Code approach, using Jenkins as a tool.
-
-The pipeline watches the gitHub repos for changes to the code and does the following:
-
-1. Builds the Docker image
-2. Runs the tests
-3. Pushes the new image to DockerHub
-
-In each app repo there is a Dockerfile and a Jenkinsfile with the code required to run the pipeline and build the images.
-
-### Dependencies
-
-Jenkins needs to be installed and set up locally on your system. In this build the pipeline has been built and tested using a local install of Jenkins. If you wish to install Jenkins in a Docker container, ensure that you enable access to the host Docker daemon in order to allow Jenkins to build on Docker.
-
-
-
-## Environment installation via Pulumi
-
-The following resources are created with the insfrastructure code:
-
-### Networking:
-
-VPC, 3 private subnets, 3 public subnets
-
-
-
-### Dependencies
-
-1. node
-2. pulumi
-3. npm
-4. aws account
-
-For Pulumi, it is recommended to follow the set-up guide (here)[https://www.pulumi.com/docs/clouds/aws/get-started/begin/]
-   
-### Set-up
-
-1. Clone the repository and navigate to the folder / open with IDE
-
-2. Authenticate with AWS
-
-3. Run `npm i` - this will install the packages and dependencies for the Pulumi project
-
-4. To build the infrastructure, run `pulumi up`. Choose the stack required. It is recommended to test the infrastructure build using the `dev` stack first.
-
-5. Check build via Pulumi console and/or AWS console.
