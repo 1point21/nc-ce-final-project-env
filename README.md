@@ -84,30 +84,48 @@ Congratulations, you have successfully installed ArgoCD, Now access the interfac
 <br>
 
 ```bash
-kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d
+kubectl port-forward svc/argocd-server -n argocd 8083:443
 ```
 <br>
 
 ```bash
-kubectl port-forward svc/argocd-server -n argocd 8083:443
+kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d
 ```
-<br> <br>
-In order to access the ArgoCD UI, you will need a password, the first command of the two above will generate that password for you!
-<br> <br>
-Now run the second command to port-forward the application to your localhost. 
-<br>
-Access the ArgoCD Interface throught the following link:
-<br>
 
+<br> <br>
+The first command will port-forward the application to your localhost, this gives you access to the Argo UI via the internet
+<br> <br>
+The second command will generate you a password, copy this password as you will need to use it later on.
+<br><br>
+
+Access the ArgoCD Interface throught the following link:
 <br>
 http://localhost:8083
 <br><br>
 
-You will be asked for a user name and password:
+Once you use the link above to access argo, you may run into an error message saying:
 <br>
+'Your connection is not private'
+<br>
+To access Argo, simply select the advanced button, and the select the following link:
+<br>
+"Proceed to localhost (unsafe)"
+<br>
+You should now be able to see the Argo login UI, <br>
+You will be asked for a user name and password, use the following:
+<br><br>
 Username = admin
 <br>
 Password = (The output provided when entering the provided command to generate the password)
+<br><br>
+
+At this point you should have successfully conncted to the ArgoCD interface!
+<br>
+You can now start the application setup ...
+<br><br>
+
+First, go to the left-side bar and choose the settungs option:
+<br>
 
 
 
