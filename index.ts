@@ -256,12 +256,17 @@ const argo = new k8s.helm.v3.Chart(
   { provider }
 );
 
+// TODO - create all namespaces in one loop to clean up code
+// need to make namespaces for prod, dev, staging
+// change reclaim policy for storageClass in cluster
+// make script to export all the required values
+
 // create nginx namespace
-const nginx_ns = new k8s.core.v1.Namespace(
-  "nginx-ns",
+const nginx_ns_test = new k8s.core.v1.Namespace(
+  "nginx-ns-test",
   {
     metadata: {
-      name: namespaces.nginx,
+      name: "nginx-test",
     },
   },
   { provider }
@@ -269,9 +274,9 @@ const nginx_ns = new k8s.core.v1.Namespace(
 
 // deploy nginx ingress controller
 const nginxIngressController = new k8s.helm.v3.Chart(
-  "nginx-ingress",
+  "nginx-ingress-test",
   {
-    namespace: nginx_ns.metadata.name,
+    namespace: nginx_ns_test.metadata.name,
     chart: "nginx-ingress",
     fetchOpts: { repo: "https://helm.nginx.com/stable" },
     // Override the default configuration
@@ -289,6 +294,43 @@ const nginxIngressController = new k8s.helm.v3.Chart(
   },
   { provider }
 );
+
+// // create nginx namespace
+// const nginx_ns_dev = new k8s.core.v1.Namespace(
+//   "nginx-ns-dev",
+//   {
+//     metadata: {
+//       name: "nginx-dev",
+//     },
+//   },
+//   { provider }
+// );
+
+// // deploy nginx ingress controller
+// const nginxIngressController_dev = new k8s.helm.v3.Chart(
+//   "nginx-ingress-dev",
+//   {
+//     namespace: nginx_ns_dev.metadata.name,
+//     chart: "nginx-ingress",
+//     fetchOpts: { repo: "https://helm.nginx.com/stable" },
+//     // Override the default configuration
+//     values: {
+//       controller: {
+//         kind: "daemonset",
+//         service: {
+//           type: "LoadBalancer",
+//           annotations: {
+//             "service.beta.kubernetes.io/aws-load-balancer-type": "nlb",
+//           },
+//         },
+//         ingressClass: {
+//           name: "nginx1"
+//         }
+//       },
+//     },
+//   },
+//   { provider }
+// );
 
 // create monitoring namespace
 const prom_ns = new k8s.core.v1.Namespace(
@@ -315,26 +357,26 @@ const prometheus = new k8s.helm.v3.Chart(
     //     },
     //   },
     // },
-  //   values: {
-  //     global: {
-  //         scrape_interval: "15s",
-  //         evaluation_interval: "15s",
-  //         // scrape_timeout is not set and will use the default value of 10s
-  //     },
-  //     scrapeConfigs: [
-  //         {
-  //             job_name: "spring boot scrape",
-  //             metrics_path: "/actuator/prometheus",
-  //             scrape_interval: "5s",
-  //             static_configs: [
-  //                 {
-  //                     targets: ["localhost:8080"],
-  //                 },
-  //             ],
-  //         },
-  //     ],
-  // },
-  // },
+    values: {
+      prometheus: {
+      prometheusSpec: {
+        additionalScrapeConfigs: [
+          {
+            job_name: "spring boot scrape",
+            metrics_path: "/actuator/prometheus",
+            scrape_interval: "5s",
+            static_configs: [
+              {
+                // add the dns of the main ingress load balancer here
+                targets: ["a9f99a5370ae74d49bf5d7ccda06588f-40655a76ec9cbcab.elb.eu-west-2.amazonaws.com"],
+              },
+                ],
+              },
+      ],
+    }
+  },
+}
+  },
   { provider }
 );
 
@@ -388,8 +430,8 @@ const nclearnerdb = new aws.rds.Instance("nclearnerdb", {
   dbSubnetGroupName: db_subnet_group.name,
   vpcSecurityGroupIds: [sg_rds.id, sg_egress.id],
   publiclyAccessible: true,
-  skipFinalSnapshot: false,
-  finalSnapshotIdentifier: "default25d5881-snapshot"
+  skipFinalSnapshot: true,
+  // finalSnapshotIdentifier: "default25d5881-snapshot"
 });
 
 // create sg rule for private database
@@ -433,8 +475,8 @@ const priv_db = new aws.rds.Instance("privdb", {
   dbSubnetGroupName: db_subnet_group.name,
   vpcSecurityGroupIds: [sg_rds.id, sg_egress.id],
   deletionProtection: false,
-  skipFinalSnapshot: false,
-  finalSnapshotIdentifier: "privdba6750e8-snapshot",
+  skipFinalSnapshot: true,
+  // finalSnapshotIdentifier: "privdba6750e8-snapshot",
 });
 
 // dns address for public database
