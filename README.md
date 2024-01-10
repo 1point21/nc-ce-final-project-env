@@ -66,6 +66,7 @@ We will first need to create a namespace for argo.
 <br>
 Run the following command:
 <br>
+
 ```bash
 kubectl create namespace argocd
 ```
@@ -73,6 +74,7 @@ kubectl create namespace argocd
 
 After creating the namespace, you can install ArgoCD with the following command:
 <br>
+
 ```bash
 kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
 ```
@@ -80,6 +82,7 @@ kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/st
 
 Congratulations, you have successfully installed ArgoCD, Now access the interface with the following two commands:
 <br>
+
 ```bash
 kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d
 ```
@@ -88,6 +91,7 @@ In order to access the ArgoCD UI, you will need a password, the command above wi
 <br> <br>
 Now run the following command to access the ArgoCD Interface:
 <br>
+
 ```bash
 kubectl port-forward svc/argocd-server -n argocd 8083:443
 ```
