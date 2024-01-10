@@ -2,7 +2,6 @@ import * as pulumi from "@pulumi/pulumi";
 import * as aws from "@pulumi/aws";
 import * as eks from "@pulumi/eks";
 import * as k8s from "@pulumi/kubernetes";
-import { SecurityGroup } from "@pulumi/aws/ec2";
 
 const config = new pulumi.Config();
 
@@ -20,16 +19,33 @@ interface yourDetails {
   yourAccessKey: string;
 }
 
-interface namespaces {
-  argo: string;
-  nginx: string;
-  prometheus: string;
+interface clusterValues {
+  instanceType: string;
+  desiredCapacity: number;
+  minSize: number;
+  maxSize: number;
+  namespaces: string[];
+}
+
+interface databaseValues {
+  dbName: string;
+    instanceClass: string;
+    username: string;
+    password: string;
+}
+
+interface privDatabaseValues {
+    dbName: string;
+    instanceClass: string;
+    username: string;
 }
 
 // define objects from config file
 const vpc = config.requireObject<vpc>("vpc");
 const yourDetails = config.requireObject<yourDetails>("yourDetails");
-const namespaces = config.requireObject<namespaces>("namespaces");
+const clusterValues = config.requireObject<clusterValues>("clusterValues");
+const databaseValues = config.requireObject<databaseValues>("databaseValues")
+const privDatabaseValues = config.requireObject<privDatabaseValues>("privDatabaseValues")
 
 // ----NETWORKING----
 // create VPC
@@ -205,17 +221,16 @@ const rds_ingress = new aws.vpc.SecurityGroupIngressRule("rds_ingress", {
   toPort: 5432,
 });
 
-
 // ----EKS----
 
 // create cluster
 const cluster = new eks.Cluster("cluster", {
   vpcId: main.id,
-  instanceType: "t2.medium",
+  instanceType: clusterValues.instanceType,
   publicSubnetIds: pub_sub.map((sub) => sub.id),
-  desiredCapacity: 2,
-  minSize: 1,
-  maxSize: 2,
+  desiredCapacity: clusterValues.desiredCapacity,
+  minSize: clusterValues.minSize,
+  maxSize: clusterValues.maxSize,
   useDefaultVpcCni: true,
 });
 
@@ -224,24 +239,117 @@ const provider = new k8s.Provider("provider", {
   kubeconfig: cluster.kubeconfig,
 });
 
-// create argo-cd namespace
-const argo_cd_ns = new k8s.core.v1.Namespace(
-  "argocd-ns",
-  {
-    metadata: {
-      name: namespaces.argo,
+// create namespaces
+const cluster_namespaces = clusterValues.namespaces.map(namespace => {
+  return new k8s.core.v1.Namespace(
+    `${namespace}`, 
+    {
+      metadata: {
+        name: namespace,
+      },
     },
+    { provider }
+  )
+})
+
+// ----DATABASES----
+
+// NOTE: the code as standard provisions a publicly accessible database for testing
+// purposes. There is provision for a private database (a database in the 
+// private subnets) which has the correct security group ingress rules to allowed
+// access from cluster pods inside the VPC. This should be used for anything
+// other than the testing Environment.
+
+// ### PUBLIC DB ###
+
+// create subnet group for database (public)
+const db_subnet_group = new aws.rds.SubnetGroup("db_subnet_group", {
+  subnetIds: pub_sub.map((sub) => sub.id),
+  tags: {
+    Name: `${pulumi.getProject()}-rd-subnet-group`,
+    ManagedBy: "Pulumi",
   },
-  { provider }
+});
+
+// NOTE: this should be uncommented, together with 
+// "manageMasterUserPassword" in the database resource creation
+// to force use of AWS secrets for added security and to avoid
+// sensitive inforamtion being stored on gitHub
+
+// const dbkey = new aws.kms.Key("dbkey", {description: "Example KMS Key"});
+
+const nclearnerdb = new aws.rds.Instance("nclearnerdb", {
+  allocatedStorage: 5,
+  dbName: databaseValues.dbName,
+  engine: "postgres",
+  engineVersion: "14.10",
+  instanceClass: databaseValues.instanceClass,
+  //NOTE: uncomment following 2 lines for use of AWS Secrets
+  //manageMasterUserPassword: true,
+  //masterUserSecretKmsKeyId: dbkey.keyId,
+  username: databaseValues.username,
+  password: databaseValues.password,
+  dbSubnetGroupName: db_subnet_group.name,
+  vpcSecurityGroupIds: [sg_rds.id, sg_egress.id],
+  publiclyAccessible: true,
+  skipFinalSnapshot: true,
+});
+
+// ### PRIVATE DB ###
+
+// create sg rule for private database
+const rds_internal_ingress = new aws.vpc.SecurityGroupIngressRule(
+  "rds_ingress_internal",
+  {
+    securityGroupId: sg_rds.id,
+    referencedSecurityGroupId: cluster.nodeSecurityGroup.id,
+    fromPort: 5432,
+    ipProtocol: "tcp",
+    toPort: 5432,
+  }
 );
 
+// create subnet group for database (private)
+const db_subnet_group_priv = new aws.rds.SubnetGroup("db_subnet_group_priv", {
+  subnetIds: priv_sub.map((sub) => sub.id),
+  tags: {
+    Name: `${pulumi.getProject()}-rd-subnet-group-priv`,
+    ManagedBy: "Pulumi",
+  },
+});
+
+// create kms key for private database
+const priv_dbkey = new aws.kms.Key("priv_dbkey", {
+  description: "Private KMS Key",
+});
+
+// create private database
+const priv_db = new aws.rds.Instance("privdb", {
+  allocatedStorage: 5,
+  dbName: privDatabaseValues.dbName,
+  engine: "postgres",
+  engineVersion: "14.10",
+  instanceClass: privDatabaseValues.instanceClass,
+  manageMasterUserPassword: true,
+  masterUserSecretKmsKeyId: priv_dbkey.keyId,
+  username: privDatabaseValues.username,
+  dbSubnetGroupName: db_subnet_group.name,
+  vpcSecurityGroupIds: [sg_rds.id, sg_egress.id],
+  deletionProtection: false,
+  skipFinalSnapshot: true,
+});
+
+// ----HELM CHARTS----
+
+// NOTE: deploy helm charts AFTER the eks cluster and databases have been
+// sucessfully built
+
 // deploy argo helm chart behind alb service to allow public access
-const argo = new k8s.helm.v3.Chart(
-  "argo",
+const argo_cd = new k8s.helm.v3.Chart(
+  "argo-cd",
   {
-    namespace: argo_cd_ns.metadata.name,
+    namespace: cluster_namespaces[0].metadata.name,
     chart: "argo-cd",
-    // version: "2.4.9",
     fetchOpts: {
       repo: "https://argoproj.github.io/argo-helm",
     },
@@ -256,30 +364,13 @@ const argo = new k8s.helm.v3.Chart(
   { provider }
 );
 
-// TODO - create all namespaces in one loop to clean up code
-// need to make namespaces for prod, dev, staging
-// change reclaim policy for storageClass in cluster
-// make script to export all the required values
-
-// create nginx namespace
-const nginx_ns_test = new k8s.core.v1.Namespace(
-  "nginx-ns-test",
-  {
-    metadata: {
-      name: "nginx-test",
-    },
-  },
-  { provider }
-);
-
 // deploy nginx ingress controller
 const nginxIngressController = new k8s.helm.v3.Chart(
-  "nginx-ingress-test",
+  "nginx-ingress",
   {
-    namespace: nginx_ns_test.metadata.name,
+    namespace: cluster_namespaces[1].metadata.name,
     chart: "nginx-ingress",
     fetchOpts: { repo: "https://helm.nginx.com/stable" },
-    // Override the default configuration
     values: {
       controller: {
         kind: "daemonset",
@@ -295,68 +386,13 @@ const nginxIngressController = new k8s.helm.v3.Chart(
   { provider }
 );
 
-// // create nginx namespace
-// const nginx_ns_dev = new k8s.core.v1.Namespace(
-//   "nginx-ns-dev",
-//   {
-//     metadata: {
-//       name: "nginx-dev",
-//     },
-//   },
-//   { provider }
-// );
-
-// // deploy nginx ingress controller
-// const nginxIngressController_dev = new k8s.helm.v3.Chart(
-//   "nginx-ingress-dev",
-//   {
-//     namespace: nginx_ns_dev.metadata.name,
-//     chart: "nginx-ingress",
-//     fetchOpts: { repo: "https://helm.nginx.com/stable" },
-//     // Override the default configuration
-//     values: {
-//       controller: {
-//         kind: "daemonset",
-//         service: {
-//           type: "LoadBalancer",
-//           annotations: {
-//             "service.beta.kubernetes.io/aws-load-balancer-type": "nlb",
-//           },
-//         },
-//         ingressClass: {
-//           name: "nginx1"
-//         }
-//       },
-//     },
-//   },
-//   { provider }
-// );
-
-// create monitoring namespace
-const prom_ns = new k8s.core.v1.Namespace(
-  "prometheus",
-  {
-    metadata: {
-      name: namespaces.prometheus,
-    },
-  },
-  { provider }
-);
-
+// deploy prometheus and grafana
 const prometheus = new k8s.helm.v3.Chart(
   "prometheus",
   {
-    namespace: prom_ns.metadata.name,
+    namespace: cluster_namespaces[2].metadata.name,
     chart: "kube-prometheus-stack",
     fetchOpts: { repo: "https://prometheus-community.github.io/helm-charts" },
-    // Override the default configuration
-    // values: {
-    //   prometheus: {
-    //     service: {
-    //       type: "LoadBalancer",
-    //     },
-    //   },
-    // },
     values: {
       prometheus: {
       prometheusSpec: {
@@ -380,104 +416,8 @@ const prometheus = new k8s.helm.v3.Chart(
   { provider }
 );
 
-// const prom_service = new k8s.core.v1.Service("prom_service", {
-//   metadata: {
-//       annotations: {
-//         "prometheus.io/scrape": 'true',
-//         "prometheus.io/port":   '9090'
-//       },
-//       namespace: prom_ns.metadata.name,
-//       name: "prometheus-service"
-//   },
-//   spec: {  
-//     selector: {
-//       "app.kubernetes.io/instance": "prometheus",
-//       "app.kubernetes.io/name": "grafana",
-//     },    
-//     type: "LoadBalancer",
-//       ports: [{
-//           port: 8080,
-//           targetPort: 9090,
-//       }],
-//   },
-// }, { provider } );
 
-// ----DATABASES----
-
-// create subnet group for database (public)
-
-const db_subnet_group = new aws.rds.SubnetGroup("db_subnet_group", {
-  subnetIds: pub_sub.map((sub) => sub.id),
-  tags: {
-    Name: `${pulumi.getProject()}-rd-subnet-group`,
-    ManagedBy: "Pulumi",
-  },
-});
-
-// create kms key for secrets
-// const dbkey = new aws.kms.Key("dbkey", {description: "Example KMS Key"});
-
-const nclearnerdb = new aws.rds.Instance("nclearnerdb", {
-  allocatedStorage: 5,
-  dbName: "testdb2",
-  engine: "postgres",
-  engineVersion: "14.10",
-  instanceClass: "db.t3.micro",
-  //manageMasterUserPassword: true,
-  //masterUserSecretKmsKeyId: dbkey.keyId,
-  username: "nclearner",
-  password: "password",
-  dbSubnetGroupName: db_subnet_group.name,
-  vpcSecurityGroupIds: [sg_rds.id, sg_egress.id],
-  publiclyAccessible: true,
-  skipFinalSnapshot: true,
-  // finalSnapshotIdentifier: "default25d5881-snapshot"
-});
-
-// create sg rule for private database
-
-const rds_internal_ingress = new aws.vpc.SecurityGroupIngressRule(
-  "rds_ingress_internal",
-  {
-    securityGroupId: sg_rds.id,
-    referencedSecurityGroupId: cluster.nodeSecurityGroup.id,
-    fromPort: 5432,
-    ipProtocol: "tcp",
-    toPort: 5432,
-  }
-);
-
-// create subnet group for database (private)
-
-const db_subnet_group_priv = new aws.rds.SubnetGroup("db_subnet_group_priv", {
-  subnetIds: priv_sub.map((sub) => sub.id),
-  tags: {
-    Name: `${pulumi.getProject()}-rd-subnet-group-priv`,
-    ManagedBy: "Pulumi",
-  },
-});
-
-// create kms key for private database
-const priv_dbkey = new aws.kms.Key("priv_dbkey", {
-  description: "Private KMS Key",
-});
-
-// create private database
-const priv_db = new aws.rds.Instance("privdb", {
-  allocatedStorage: 5,
-  dbName: "mydb",
-  engine: "postgres",
-  engineVersion: "14.10",
-  instanceClass: "db.t3.micro",
-  manageMasterUserPassword: true,
-  masterUserSecretKmsKeyId: priv_dbkey.keyId,
-  username: "nclearnerpriv",
-  dbSubnetGroupName: db_subnet_group.name,
-  vpcSecurityGroupIds: [sg_rds.id, sg_egress.id],
-  deletionProtection: false,
-  skipFinalSnapshot: true,
-  // finalSnapshotIdentifier: "privdba6750e8-snapshot",
-});
+// ----EXPORTS----
 
 // dns address for public database
 export const database = nclearnerdb.address;
