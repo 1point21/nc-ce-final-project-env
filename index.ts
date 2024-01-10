@@ -427,3 +427,8 @@ export const priv_database = priv_db.address;
 
 // kubeconfig for kubectl 
 export const kubeconfig = cluster.kubeconfig;
+
+
+const service = nginxIngressController.getResource("v1/Service", "nginx-ingress-controller");
+
+export const ingressDNS = service.status.apply(status => status.loadBalancer.ingress[0].hostname)
