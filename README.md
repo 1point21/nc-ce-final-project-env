@@ -87,17 +87,18 @@ Congratulations, you have successfully installed ArgoCD, Now access the interfac
 kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d
 ```
 <br>
-In order to access the ArgoCD UI, you will need a password, the command above will generate that password for you!
-<br> <br>
-Now run the following command to access the ArgoCD Interface:
-<br>
 
 ```bash
 kubectl port-forward svc/argocd-server -n argocd 8083:443
 ```
 <br> <br>
+In order to access the ArgoCD UI, you will need a password, the first command of the two above will generate that password for you!
+<br> <br>
+Now run the second command to port-forward the application to your localhost. 
+<br>
+Access the ArgoCD Interface throught the following link:
+<br>
 
-Hopefully, no errors will occur during this process, you will now be able to go to the internet and access the Argo UI through the following link:
 <br>
 http://localhost:8083
 <br><br>
