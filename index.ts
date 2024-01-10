@@ -155,7 +155,7 @@ const sg_rds = new aws.ec2.SecurityGroup("allow-postgres", {
 
 const rds_ingress = new aws.vpc.SecurityGroupIngressRule("rds_ingress", {
   securityGroupId: sg_rds.id,
-  cidrIpv4: yourDetails.yourIP,
+  cidrIpv4: "0.0.0.0/0",
   fromPort: 5432,
   ipProtocol: "tcp",
   toPort: 5432,
@@ -326,6 +326,19 @@ const nginxIngressController = new k8s.helm.v3.Chart(
   { provider }
 );
 
+// export dns for ingress lb and argo lb to string
+const ingress = {
+  nginx_loadBalancer_pub_dns: nginxIngressController.getResource("v1/Service", "nginx/nginx-ingress-controller"
+  ).status.loadBalancer.ingress[0].hostname,
+  argo_loadBalancer_pub_dns: argo_cd.getResource("v1/Service",
+    "argo-cd/argo-cd-argocd-server"
+  ).status.loadBalancer.ingress[0].hostname
+}
+
+let ingressString = ingress.nginx_loadBalancer_pub_dns.apply(dns => "" + dns);
+
+// export const typeingressstring = typeof ingressString.toString()
+
 // deploy prometheus and grafana
 const prometheus = new k8s.helm.v3.Chart(
   "prometheus",
@@ -338,13 +351,13 @@ const prometheus = new k8s.helm.v3.Chart(
       prometheusSpec: {
         additionalScrapeConfigs: [
           {
-            job_name: "spring boot scrape",
+            job_name: "spring-scrape",
             metrics_path: "/actuator/prometheus",
             scrape_interval: "5s",
             static_configs: [
               {
-                // add the dns of the network.vpc ingress load balancer here
-                targets: ["a9f99a5370ae74d49bf5d7ccda06588f-40655a76ec9cbcab.elb.eu-west-2.amazonaws.com"],
+                //add the dns of the network.vpc ingress load balancer here
+                targets: [ingressString],
               },
                 ],
               },
@@ -368,7 +381,5 @@ export const priv_database = priv_db.address;
 // kubeconfig for kubectl 
 export const kubeconfig = cluster.kubeconfig;
 
-
-const service = nginxIngressController.getResource("v1/Service", "nginx-ingress-controller");
-
-export const ingressDNS = service.status.apply(status => status.loadBalancer.ingress[0].hostname)
+// dns for albs
+export const albs = ingress
