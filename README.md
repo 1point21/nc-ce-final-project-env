@@ -106,11 +106,11 @@ http://localhost:8083
 Once you use the link above to access argo, you may run into an error message saying:
 <br>
 'Your connection is not private'
-<br>
+<br><br>
 To access Argo, simply select the advanced button, and the select the following link:
 <br>
 "Proceed to localhost (unsafe)"
-<br>
+<br><br>
 You should now be able to see the Argo login UI, <br>
 You will be asked for a user name and password, use the following:
 <br><br>
