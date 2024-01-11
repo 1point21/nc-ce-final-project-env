@@ -127,13 +127,6 @@ Password = (The output provided when entering the provided command to generate t
 <br>
 
 At this point you should have successfully conncted to the ArgoCD interface!
-<br>
-You can now start the application setup ...
-<br><br>
-
-First, go to the left-side bar and choose the settings option:
-<br>
-
 
 
 <br> <br>
