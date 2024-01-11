@@ -184,6 +184,8 @@ A DinD (Docker in Docker) will automatically run in the cluster like in the abov
 ```
 /# ./jenkins.sh
 ```
+If your cluster is on the cloud, run ```kubectl get services``` to find the DNS that Jenkins is running on, it will be on port 8084.
+If you are on the local machine, Jenkins will run on http://localhost:8084
 
 Once Jenkins is installed and you have signed-up, you need to:
 1. Add Github credentials
