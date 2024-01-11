@@ -164,10 +164,10 @@ kubectl create secret generic mysecrets --from-literal=url=jdbc:postgresql://REP
 
 ### Setup environment with Argo
 
-Once you have logged in to argo, set up the following environment respository
+Once you have logged in to argo, set up the environment from the following repository:
 https://github.com/shenuka-jayasinghe/ce-team-project-k8s
 
-When you run the new application on argo, select 'learners-helm' as the directory and select the configuration options that suits your environment.
+When you configure the new application on argo, select 'learners-helm' as the directory and select the configuration options that suits your environment.
 For example, host will be 'localhost' for the local machine, and load-balancer DNS for the cloud.
 
 ![image](https://github.com/1point21/nc-ce-final-project-env/assets/137282472/ecbec2dc-d1c4-4787-ad86-1c0f807cb6a1)
