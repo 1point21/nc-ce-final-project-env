@@ -112,21 +112,22 @@ To access Argo, simply select the advanced button, and the select the following 
 "Proceed to localhost (unsafe)"
 <br><br>
 You should now be able to see the Argo login UI, <br>
+
 You will be asked for a user name and password, use the following:
-<br><br>
+<br>
 
 ```bash
 Username = admin
 Password = (The output provided when entering the provided command to generate the password)
 ```
-<br><br>
+<br>
 
 At this point you should have successfully conncted to the ArgoCD interface!
 <br>
 You can now start the application setup ...
 <br><br>
 
-First, go to the left-side bar and choose the settungs option:
+First, go to the left-side bar and choose the settings option:
 <br>
 
 
