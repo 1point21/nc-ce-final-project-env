@@ -26,6 +26,10 @@ View all the tools and languages that were used at the bottom of the page!
 
 Our learner management system allows users to access a Northcoders UI, sign up as a new user, or sign in as a pre-existing user. This README provides comprehensive guidance on setting up and running the system.
 
+The following image summarises the infrastructure, environment and CI/CD pipeline:
+<img width="6688" alt="project (6)" src="https://github.com/1point21/nc-ce-final-project-env/assets/137282472/b2be9e3e-8d23-448c-8d14-1fe9dfd5983b">
+
+
 ## Prerequisites
 
 Before you start, ensure you have the following prerequisites:
@@ -143,9 +147,38 @@ pulumi up
 ```
 <br> 
 
+### Setup Ingress Controller with nginx
+
+Install an ingress controller from nginx to forward the frontend and backend services we will setup later with argo
+
+```
+kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/cloud/deploy.yaml
+```
+
+### K8s secrets
+
+Add the url, username and password using k8s from your terminal (making sure you are in the correct K8s context, and the same namespace of your environment)
+```
+kubectl create secret generic mysecrets --from-literal=url=jdbc:postgresql://REPLACE-DB-URL-HERE.com:5432/testdb2 --from-literal=username=username --from-literal=password=password
+```
+
+### Setup environment with Argo
+
+Once you have logged in to argo, set up the following environment respository
+https://github.com/shenuka-jayasinghe/ce-team-project-k8s
+
+When you run the new application on argo, select 'learners-helm' as the directory and select the configuration options that suits your environment.
+For example, host will be 'localhost' for the local machine, and load-balancer DNS for the cloud.
+
+
+#### Optional: Developer environment
+
+If you want to setup a developer environment as well simply start a new application on argo from the same repo and directory above but change the 'type' of both services from 'ClusterIP' to 'LoadBalancer'
+
+
 ### Accessing the Learner UI
 
-Open your browser and navigate to [http://localhost:3000](http://localhost:3000) to access the Learner UI.
+Open your browser and navigate to [http://localhost](http://localhost) to access the Learner UI.
 <br> <br> OR <br> <br>
 Open your browser and navigate to the created ingress DNS to access the Learner UI.
 
