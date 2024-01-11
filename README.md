@@ -170,10 +170,25 @@ https://github.com/shenuka-jayasinghe/ce-team-project-k8s
 When you run the new application on argo, select 'learners-helm' as the directory and select the configuration options that suits your environment.
 For example, host will be 'localhost' for the local machine, and load-balancer DNS for the cloud.
 
+![image](https://github.com/1point21/nc-ce-final-project-env/assets/137282472/ecbec2dc-d1c4-4787-ad86-1c0f807cb6a1)
+
 
 #### Optional: Developer environment
 
-If you want to setup a developer environment as well simply start a new application on argo from the same repo and directory above but change the 'type' of both services from 'ClusterIP' to 'LoadBalancer'
+If you want to setup a developer environment as well simply start a new application on argo from the same repo and directory above but change the 'type' of both services from 'ClusterIP' to 'LoadBalancer'. Although Argo might show there is an error with the environment, it is only because 
+
+
+### Setting up Jenkins
+
+A DinD (Docker in Docker) will automatically run in the cluster like in the above image. You need to shell in to the container and run the following command:
+```
+/# ./jenkins.sh
+```
+
+Once Jenkins is installed and you have signed-up, you need to:
+1. Add Github credentials
+2. Add Dockerhub crendentials (IMPORTANT: ID of dockerhub credentials has to be 'dockerhub')
+3. Add the backend and frontend repos to your pipeline and build
 
 
 ### Accessing the Learner UI
