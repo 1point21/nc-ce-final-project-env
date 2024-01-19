@@ -17,5 +17,25 @@ config:
       - eu-west-2c
   security:
   yourDetails:
-    yourIP: 185.205.174.138/32
+    yourIP: 81.77.123.225/32
     yourAccessKey:
+  clusterValues:
+    instanceType: t2.medium
+    desiredCapacity: 2
+    minSize: 1
+    maxSize: 2
+    namespaces:
+      - argo-cd
+      - nginx
+      - monitoring
+      - test
+      - dev
+  databaseValues:
+    dbName: testdb2
+    instanceClass: db.t3.micro
+    username: nclearner
+    password: password
+  privDatabaseValues:
+    dbName: privDb
+    instanceClass: db.t3.micro
+    username: nclearner
