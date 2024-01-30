@@ -1,34 +1,44 @@
 # Learner Management System
 
-Welcome to our learner management system repository! This collaborative effort by our team aims to deploy a learner management system to the AWS cloud. This repository houses code, documentation, and guides for a smooth deployment process. By harnessing AWS capabilities, our aim was to create a highly efficient and scalable system.
-<br> <br>
+## Introduction
 
-View all the tools and languages that were used at the bottom of the page!
+This repository is the starting point and infrastructure repository for a final group project for my training at Northcoders. The following README provides a detailed guide to setting up and testing the infrastructure, apps, pipelines and monitoring for the final solution. The other repositories for the project are linked below:
 
-<br>
+**Kubernetes yaml and helm charts** can be found [here](https://github.com/1point21/ce-team-project-k8s)
+
+**Front-end app repository** including Dockerfile and Jenkinsfile can be found [here]()
 
 ## Table of Contents
 
-1. [Introduction](#introduction)
-2. [Prerequisites](#prerequisites)
-3. [Getting Started](#getting-started)
+- [Learner Management System](#learner-management-system)
+  - [Introduction](#introduction)
+  - [Table of Contents](#table-of-contents)
+  - [Brief and Background](#brief-and-background)
+  - [Solution Diagram](#solution-diagram)
+  - [Prerequisites](#prerequisites)
+  - [Getting Started](#getting-started)
     - [Clone the Repository](#clone-the-repository)
     - [Setting up AWS](#setting-up-aws)
-4. [Usage](#usage)
-    - [Application Setup](#application-setup)
+  - [Aplication Setup:](#aplication-setup)
+    - [Setup Ingress Controller with nginx](#setup-ingress-controller-with-nginx)
+    - [K8s secrets](#k8s-secrets)
+    - [Setup environment with Argo](#setup-environment-with-argo)
+      - [Optional: Developer environment](#optional-developer-environment)
+    - [Setting up Jenkins](#setting-up-jenkins)
     - [Accessing the Learner UI](#accessing-the-learner-ui)
-5. [System Infrastructure](#system-infrastructure)
-6. [Languages and Tools](#languages-and-tools)
-7. [Contributing](#contributing)
-9. [License](#license)
+  - [System Infrastructure](#system-infrastructure)
+  - [Languages and Tools](#languages-and-tools)
+  - [Contributing](#contributing)
+  - [License](#license)
 
-## Introduction
+## Brief and Background
 
-Our learner management system allows users to access a Northcoders UI, sign up as a new user, or sign in as a pre-existing user. This README provides comprehensive guidance on setting up and running the system.
+
+
+## Solution Diagram
 
 The following image summarises the infrastructure, environment and CI/CD pipeline:
 <img width="6688" alt="project (6)" src="https://github.com/1point21/nc-ce-final-project-env/assets/137282472/b2be9e3e-8d23-448c-8d14-1fe9dfd5983b">
-
 
 ## Prerequisites
 
